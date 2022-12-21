@@ -12,6 +12,7 @@ from tqdm import tqdm
 from PIL import Image
 from PIL import ExifTags
 from pillow_heif import register_heif_opener
+from pymediainfo import MediaInfo
 
 
 register_heif_opener()
@@ -26,7 +27,9 @@ class PhotoException(Exception):
 class PhotoOrganizer:
 
     dt_tolerance = timedelta(hours=1, seconds=1)  # Daylight Saving Time
-    allowed_exts = ('.jpg', '.heic')
+    allowed_exts = ('.jpg', '.heic', '.mov')
+    pillow_exts = ('.jpg', '.heic')
+    mediainfo_exts = ('.mov')
 
     def __init__(self, src_dir: Path, dst_dir: Path) -> None:
         self.src_dir = src_dir
@@ -35,7 +38,23 @@ class PhotoOrganizer:
         self.skipped_items = deque()
 
     def get_time_taken(self, photo: Path, verify: bool = True) -> datetime:
-        # Extract DateTime from EXIF
+        if photo.suffix.lower() in self.pillow_exts:
+            dt = self.get_time_taken_pillow(photo)
+        elif photo.suffix.lower() in self.mediainfo_exts:
+            dt = self.get_time_taken_mediainfo(photo)
+        else:
+            raise RuntimeError()
+
+        # Verify DateTime does not deviate from mtime too much
+        _file_dt = photo.stat().st_mtime
+        file_dt = datetime.fromtimestamp(_file_dt)
+        if verify and abs(file_dt - dt) > self.dt_tolerance:
+            msg = f'EXIF DateTime deviates from file mtime: {dt=} {file_dt=}'
+            raise PhotoException(photo, msg) from None
+
+        return dt
+
+    def get_time_taken_pillow(self, photo: Path) -> datetime:
         image = Image.open(photo)
         _exif = image.getexif()
         exif = {
@@ -48,16 +67,15 @@ class PhotoOrganizer:
         except KeyError:
             msg = 'Cannot extract EXIF DateTime'
             raise PhotoException(photo, msg) from None
-
-        # Verify DateTime does not deviate from mtime too much
-        exif_dt = datetime.strptime(_exit_dt, '%Y:%m:%d %H:%M:%S')
-        _file_dt = photo.stat().st_mtime
-        file_dt = datetime.fromtimestamp(_file_dt)
-        if verify and abs(file_dt - exif_dt) > self.dt_tolerance:
-            msg = f'EXIF DateTime deviates from file mtime: {exif_dt=} {file_dt=}'
-            raise PhotoException(photo, msg) from None
-
+        else:
+            exif_dt = datetime.strptime(_exit_dt, '%Y:%m:%d %H:%M:%S')
         return exif_dt
+
+    def get_time_taken_mediainfo(self, photo: Path) -> datetime:
+        mediainfo = MediaInfo.parse(photo)
+        general_track = mediainfo.general_tracks[0]  # type: ignore
+        dt = datetime.strptime(general_track.comapplequicktimecreationdate, '%Y-%m-%dT%H:%M:%S%z')  # type: ignore
+        return dt
 
     def start(self):
         # If src_dir is a file, just print the info and exit
