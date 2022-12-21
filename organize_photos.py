@@ -63,7 +63,13 @@ class PhotoOrganizer:
             for k, v in _exif.items()
             if k in ExifTags.TAGS and type(v) is not bytes
         }
-        #print(exif)
+
+        # Identify app photos
+        if exif.get('Software') in ('Instagram',):
+            dt = datetime.fromtimestamp(photo.stat().st_mtime)
+            return dt
+
+        # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized')
         if _exif_dt is None:
             msg = 'Cannot extract EXIF DateTime'
