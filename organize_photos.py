@@ -48,7 +48,7 @@ class PhotoOrganizer:
         elif photo.suffix.lower() in self.screenshot_exts:
             assert photo.parent.name == 'Screenshots'
             dt = datetime.fromtimestamp(photo.stat().st_mtime)
-            assert dt.strftime('%Y-%m-%d') == photo.parent.parent.name
+            assert photo.parent.parent.name.startswith(dt.strftime('%Y-%m-%d'))
         else:
             raise RuntimeError()
 
