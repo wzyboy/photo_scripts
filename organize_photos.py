@@ -43,7 +43,10 @@ class PhotoOrganizer:
             dt = self.get_time_taken_pillow(photo)
         elif photo.suffix.lower() in self.mediainfo_exts:
             dt = self.get_time_taken_mediainfo(photo)
-        elif photo.suffix.lower() in self.screenshot_exts:
+        elif (
+            photo.suffix.lower() in self.screenshot_exts
+            or photo.parent.name == 'Screenshots'
+        ):
             dt = datetime.fromtimestamp(photo.stat().st_mtime)
         else:
             raise RuntimeError('Unexpected exts.')
