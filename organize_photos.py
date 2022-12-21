@@ -29,7 +29,7 @@ class PhotoOrganizer:
 
     pillow_exts = ('.jpg', '.heic')
     mediainfo_exts = ('.mov', '.mp4')
-    screenshot_exts = ('.png', '.gif', '.bmp')
+    screenshot_exts = ('.png', '.gif', '.bmp', '.webp')
     allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
 
     #known_software = ('Instagram', 'Google', 'Picasa', 'Adobe Photoshop CC (Windows)', 'Polarr Photo Editor')
