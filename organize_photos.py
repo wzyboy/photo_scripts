@@ -31,7 +31,8 @@ class PhotoOrganizer:
     dt_tolerance = timedelta(days=1)  # timezone
     pillow_exts = ('.jpg', '.heic')
     mediainfo_exts = ('.mov', '.mp4')
-    allowed_exts = pillow_exts + mediainfo_exts
+    screenshot_exts = ('.png',)
+    allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
 
     def __init__(self, src_dir: Path, dst_dir: Path) -> None:
         self.src_dir = src_dir
@@ -44,16 +45,21 @@ class PhotoOrganizer:
             dt = self.get_time_taken_pillow(photo)
         elif photo.suffix.lower() in self.mediainfo_exts:
             dt = self.get_time_taken_mediainfo(photo)
+        elif photo.suffix.lower() in self.screenshot_exts:
+            assert photo.parent.name == 'Screenshots'
+            dt = datetime.fromtimestamp(photo.stat().st_mtime)
+            assert dt.strftime('%Y-%m-%d') == photo.parent.parent.name
         else:
             raise RuntimeError()
 
         # Verify DateTime does not deviate from mtime too much
-        _file_dt = photo.stat().st_mtime
-        file_dt = datetime.fromtimestamp(_file_dt)
-        dt_delta = abs(file_dt - dt)
-        if verify and dt_delta > self.dt_tolerance:
-            msg = f'EXIF DateTime deviates from file mtime: {dt=} {file_dt=} {dt_delta=}'
-            raise PhotoException(photo, msg) from None
+        if verify:
+            _file_dt = photo.stat().st_mtime
+            file_dt = datetime.fromtimestamp(_file_dt)
+            dt_delta = abs(file_dt - dt)
+            if dt_delta > self.dt_tolerance:
+                msg = f'Metadata dt deviates from file mtime: {dt=} {file_dt=} {dt_delta=}'
+                raise PhotoException(photo, msg) from None
 
         return dt
 
@@ -114,8 +120,10 @@ class PhotoOrganizer:
             if photo.suffix.lower() not in self.allowed_exts:
                 continue
 
+            is_screenshot = photo.suffix.lower() in self.screenshot_exts
+
             try:
-                dt = self.get_time_taken(photo)
+                dt = self.get_time_taken(photo, verify=not is_screenshot)
             except PhotoException as e:
                 self.skipped_items.append((e.photo, e.message))
                 continue
@@ -125,7 +133,7 @@ class PhotoOrganizer:
                 continue
 
             # Compute filename
-            prefix = 'IMG_'
+            prefix = 'IMG_' if not is_screenshot else 'Screenshot_'
             timestamp = dt.strftime('%Y%m%d_%H%M%S')
             # Generate a Git-like hash (first 7 chars of SHA-1)
             with open(photo, 'rb') as f:
