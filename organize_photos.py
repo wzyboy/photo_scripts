@@ -95,9 +95,10 @@ class PhotoOrganizer:
             # Compute filename
             prefix = 'IMG_'
             timestamp = dt.strftime('%Y%m%d_%H%M%S')
-            sha256 = hashlib.sha256()
-            sha256.update(photo.read_bytes())
-            h = sha256.hexdigest()[:7]
+            # Generate a Git-like hash (first 7 chars of SHA-1)
+            sha1 = hashlib.sha256()
+            sha1.update(photo.read_bytes())
+            h = sha1.hexdigest()[:7]
             fn = f'{prefix}{timestamp}_{h}{photo.suffix.lower()}'
             full_path = self.dst_dir / str(dt.year) / fn
             if not full_path.exists():
