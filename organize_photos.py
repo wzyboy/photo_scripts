@@ -32,6 +32,8 @@ class PhotoOrganizer:
     screenshot_exts = ('.png', '.gif', '.bmp')
     allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
 
+    #known_software = ('Instagram', 'Google', 'Picasa', 'Adobe Photoshop CC (Windows)', 'Polarr Photo Editor')
+
     def __init__(self, src_dir: Path, dst_dir: Path) -> None:
         self.src_dir = src_dir
         self.dst_dir = dst_dir
@@ -64,8 +66,8 @@ class PhotoOrganizer:
             if k in ExifTags.TAGS and type(v) is not bytes
         }
 
-        # Identify app photos
-        if exif.get('Software') in ('Instagram',):
+        # If the photo is edited by some software, trust its mtime
+        if exif.get('Software'):
             dt = datetime.fromtimestamp(photo.stat().st_mtime)
             return dt
 
