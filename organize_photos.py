@@ -27,7 +27,7 @@ class PhotoException(Exception):
 
 class PhotoOrganizer:
 
-    dt_tolerance = timedelta(hours=1, seconds=1)  # Daylight Saving Time
+    dt_tolerance = timedelta(days=1)  # timezone
     allowed_exts = ('.jpg', '.heic', '.mov')
     pillow_exts = ('.jpg', '.heic')
     mediainfo_exts = ('.mov')
