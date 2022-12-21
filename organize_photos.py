@@ -5,7 +5,6 @@ import argparse
 import hashlib
 from pathlib import Path
 from datetime import datetime
-from datetime import timedelta
 from collections import deque
 
 import pytz
@@ -30,7 +29,7 @@ class PhotoOrganizer:
 
     pillow_exts = ('.jpg', '.heic')
     mediainfo_exts = ('.mov', '.mp4')
-    screenshot_exts = ('.png',)
+    screenshot_exts = ('.png', '.gif', '.bmp')
     allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
 
     def __init__(self, src_dir: Path, dst_dir: Path) -> None:
@@ -45,7 +44,6 @@ class PhotoOrganizer:
         elif photo.suffix.lower() in self.mediainfo_exts:
             dt = self.get_time_taken_mediainfo(photo)
         elif photo.suffix.lower() in self.screenshot_exts:
-            assert photo.parent.name == 'Screenshots'
             dt = datetime.fromtimestamp(photo.stat().st_mtime)
         else:
             raise RuntimeError('Unexpected exts.')
