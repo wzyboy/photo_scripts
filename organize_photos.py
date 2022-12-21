@@ -72,7 +72,7 @@ class PhotoOrganizer:
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized')
         if _exif_dt is None:
-            msg = 'Cannot extract EXIF DateTime'
+            msg = f'Cannot extract dt from EXIF: {exif}'
             raise PhotoException(photo, msg)
         else:
             exif_dt = datetime.strptime(_exif_dt, '%Y:%m:%d %H:%M:%S')
