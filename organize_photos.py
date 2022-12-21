@@ -49,8 +49,9 @@ class PhotoOrganizer:
         # Verify DateTime does not deviate from mtime too much
         _file_dt = photo.stat().st_mtime
         file_dt = datetime.fromtimestamp(_file_dt)
-        if verify and abs(file_dt - dt) > self.dt_tolerance:
-            msg = f'EXIF DateTime deviates from file mtime: {dt=} {file_dt=}'
+        dt_delta = abs(file_dt - dt)
+        if verify and dt_delta > self.dt_tolerance:
+            msg = f'EXIF DateTime deviates from file mtime: {dt=} {file_dt=} {dt_delta=}'
             raise PhotoException(photo, msg) from None
 
         return dt
