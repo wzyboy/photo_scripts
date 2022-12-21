@@ -1,3 +1,4 @@
 tqdm
 pillow-heif
 pymediainfo
+tabulate

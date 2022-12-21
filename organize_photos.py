@@ -13,6 +13,7 @@ from PIL import Image
 from PIL import ExifTags
 from pillow_heif import register_heif_opener
 from pymediainfo import MediaInfo
+from tabulate import tabulate
 
 
 register_heif_opener()
@@ -132,13 +133,16 @@ class PhotoOrganizer:
             self.rename_tasks.append(rename_task)
 
     def _confirm_rename(self) -> None:
-        print('Rename the files, preview the tasks in CSV, or abort?')
-        resp = input('(R)ename/pre(v)iew/(a)bort? ').lower()
+        print('Rename the files, preview the tasks, save the tasks in CSV, or abort?')
+        resp = input('(R)ename/(p)review/(s)ave/(a)bort? ').lower()
 
         if resp == 'r':
             self._do_rename()
-        elif resp == 'v':
+        elif resp == 'p':
             self._preview_tasks()
+            self._confirm_rename()
+        elif resp == 's':
+            self._save_tasks()
             self._confirm_rename()
         elif resp == 'a':
             return
@@ -152,6 +156,10 @@ class PhotoOrganizer:
             src.rename(dst)
 
     def _preview_tasks(self) -> None:
+        print(tabulate(self.rename_tasks))
+        print(tabulate(self.skipped_items))
+
+    def _save_tasks(self) -> None:
         with open('rename_tasks.csv', 'w') as f:
             rename_tasks_csv = csv.writer(f)
             rename_tasks_csv.writerow(['src', 'dst'])
