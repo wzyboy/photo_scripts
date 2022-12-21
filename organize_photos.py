@@ -8,6 +8,7 @@ from datetime import datetime
 from datetime import timedelta
 from collections import deque
 
+import pytz
 from tqdm import tqdm
 from PIL import Image
 from PIL import ExifTags
@@ -28,9 +29,9 @@ class PhotoException(Exception):
 class PhotoOrganizer:
 
     dt_tolerance = timedelta(days=1)  # timezone
-    allowed_exts = ('.jpg', '.heic', '.mov')
     pillow_exts = ('.jpg', '.heic')
-    mediainfo_exts = ('.mov')
+    mediainfo_exts = ('.mov', '.mp4')
+    allowed_exts = pillow_exts + mediainfo_exts
 
     def __init__(self, src_dir: Path, dst_dir: Path) -> None:
         self.src_dir = src_dir
@@ -76,8 +77,15 @@ class PhotoOrganizer:
     def get_time_taken_mediainfo(self, photo: Path) -> datetime:
         mediainfo = MediaInfo.parse(photo)
         general_track = mediainfo.general_tracks[0]  # type: ignore
-        dt = datetime.strptime(general_track.comapplequicktimecreationdate, '%Y-%m-%dT%H:%M:%S%z')  # type: ignore
-        # Make naive
+        if photo.suffix.lower() == '.mpv':
+            dt = datetime.strptime(general_track.comapplequicktimecreationdate, '%Y-%m-%dT%H:%M:%S%z')  # type: ignore
+        elif photo.suffix.lower() == '.mp4':
+            dt = datetime.strptime(general_track.encoded_date, 'UTC %Y-%m-%d %H:%M:%S')  # type: ignore
+            # Attach to UTC tzinfo to naive dt, and convert to Vancouver time
+            dt = pytz.utc.localize(dt).astimezone(pytz.timezone('America/Vancouver'))
+        else:
+            raise RuntimeError()
+        # Make naive (strip tzinfo)
         dt = dt.replace(tzinfo=None)
         return dt
 
