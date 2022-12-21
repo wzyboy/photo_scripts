@@ -75,6 +75,8 @@ class PhotoOrganizer:
         mediainfo = MediaInfo.parse(photo)
         general_track = mediainfo.general_tracks[0]  # type: ignore
         dt = datetime.strptime(general_track.comapplequicktimecreationdate, '%Y-%m-%dT%H:%M:%S%z')  # type: ignore
+        # Make naive
+        dt = dt.replace(tzinfo=None)
         return dt
 
     def start(self):
