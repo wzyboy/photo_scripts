@@ -27,7 +27,7 @@ class PhotoException(Exception):
 
 class PhotoOrganizer:
 
-    pillow_exts = ('.jpg', '.heic')
+    pillow_exts = ('.jpg', '.jpeg', '.heic')
     mediainfo_exts = ('.mov', '.mp4')
     screenshot_exts = ('.png', '.gif', '.bmp', '.webp')
     allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
@@ -87,10 +87,13 @@ class PhotoOrganizer:
             dt = datetime.strptime(general_track.comapplequicktimecreationdate, '%Y-%m-%dT%H:%M:%S%z')
         elif general_track.encoded_date:
             dt = datetime.strptime(general_track.encoded_date, 'UTC %Y-%m-%d %H:%M:%S')
-            # Attach to UTC tzinfo to naive dt, and convert to Vancouver time
-            dt = pytz.utc.localize(dt).astimezone(pytz.timezone('America/Vancouver'))
+        elif general_track.tagged_date:
+            dt = datetime.strptime(general_track.tagged_date, 'UTC %Y-%m-%d %H:%M:%S')
         else:
             raise PhotoException(photo, 'Cannot extract date from mediainfo')
+        # Attach to UTC tzinfo to naive dt, and convert to Vancouver time
+        if not dt.tzinfo:
+            dt = pytz.utc.localize(dt).astimezone(pytz.timezone('America/Vancouver'))
         # Make naive (strip tzinfo)
         dt = dt.replace(tzinfo=None)
         return dt
