@@ -82,14 +82,14 @@ class PhotoOrganizer:
     def get_time_taken_mediainfo(self, photo: Path) -> datetime:
         mediainfo = MediaInfo.parse(photo)
         general_track = mediainfo.general_tracks[0]  # type: ignore
-        if photo.suffix.lower() == '.mov':
-            dt = datetime.strptime(general_track.comapplequicktimecreationdate, '%Y-%m-%dT%H:%M:%S%z')  # type: ignore
-        elif photo.suffix.lower() == '.mp4':
-            dt = datetime.strptime(general_track.encoded_date, 'UTC %Y-%m-%d %H:%M:%S')  # type: ignore
+        if general_track.comapplequicktimecreationdate:
+            dt = datetime.strptime(general_track.comapplequicktimecreationdate, '%Y-%m-%dT%H:%M:%S%z')
+        elif general_track.encoded_date:
+            dt = datetime.strptime(general_track.encoded_date, 'UTC %Y-%m-%d %H:%M:%S')
             # Attach to UTC tzinfo to naive dt, and convert to Vancouver time
             dt = pytz.utc.localize(dt).astimezone(pytz.timezone('America/Vancouver'))
         else:
-            raise RuntimeError('Ext not handled by mediainfo.')
+            raise PhotoException(photo, 'Cannot extract date from mediainfo')
         # Make naive (strip tzinfo)
         dt = dt.replace(tzinfo=None)
         return dt
