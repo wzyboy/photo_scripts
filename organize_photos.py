@@ -28,7 +28,6 @@ class PhotoException(Exception):
 
 class PhotoOrganizer:
 
-    dt_tolerance = timedelta(days=1)  # timezone
     pillow_exts = ('.jpg', '.heic')
     mediainfo_exts = ('.mov', '.mp4')
     screenshot_exts = ('.png',)
@@ -40,7 +39,7 @@ class PhotoOrganizer:
         self.rename_tasks = deque()
         self.skipped_items = deque()
 
-    def get_time_taken(self, photo: Path, verify: bool = True) -> datetime:
+    def get_time_taken(self, photo: Path) -> datetime:
         if photo.suffix.lower() in self.pillow_exts:
             dt = self.get_time_taken_pillow(photo)
         elif photo.suffix.lower() in self.mediainfo_exts:
@@ -50,15 +49,6 @@ class PhotoOrganizer:
             dt = datetime.fromtimestamp(photo.stat().st_mtime)
         else:
             raise RuntimeError('Unexpected exts.')
-
-        # Verify DateTime does not deviate from mtime too much
-        if verify:
-            _file_dt = photo.stat().st_mtime
-            file_dt = datetime.fromtimestamp(_file_dt)
-            dt_delta = abs(file_dt - dt)
-            if dt_delta > self.dt_tolerance:
-                msg = f'Metadata dt deviates from file mtime: {dt=} {file_dt=} {dt_delta=}'
-                raise PhotoException(photo, msg) from None
 
         return dt
 
@@ -72,6 +62,7 @@ class PhotoOrganizer:
             for k, v in _exif.items()
             if k in ExifTags.TAGS and type(v) is not bytes
         }
+        #print(exif)
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized')
         if _exif_dt is None:
             msg = 'Cannot extract EXIF DateTime'
@@ -98,7 +89,7 @@ class PhotoOrganizer:
     def start(self):
         # If src_dir is a file, just print the info and exit
         if self.src_dir.is_file():
-            print(self.get_time_taken(self.src_dir, verify=False))
+            print(self.get_time_taken(self.src_dir))
             return
 
         try:
@@ -123,7 +114,7 @@ class PhotoOrganizer:
             is_screenshot = photo.suffix.lower() in self.screenshot_exts
 
             try:
-                dt = self.get_time_taken(photo, verify=not is_screenshot)
+                dt = self.get_time_taken(photo)
             except PhotoException as e:
                 self.skipped_items.append((e.photo, e.message))
                 continue
