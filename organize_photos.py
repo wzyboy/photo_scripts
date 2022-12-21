@@ -34,13 +34,17 @@ class PhotoOrganizer:
 
     #known_software = ('Instagram', 'Google', 'Picasa', 'Adobe Photoshop CC (Windows)', 'Polarr Photo Editor')
 
-    def __init__(self, src_dir: Path, dst_dir: Path) -> None:
+    def __init__(self, src_dir: Path, dst_dir: Path, mtime_only: bool = False) -> None:
         self.src_dir = src_dir
         self.dst_dir = dst_dir
         self.rename_tasks = deque()
         self.skipped_items = deque()
+        self.mtime_only = mtime_only
 
     def get_time_taken(self, photo: Path) -> datetime:
+        if self.mtime_only:
+            return datetime.fromtimestamp(photo.stat().st_mtime)
+
         if photo.suffix.lower() in self.pillow_exts:
             dt = self.get_time_taken_pillow(photo)
         elif photo.suffix.lower() in self.mediainfo_exts:
@@ -200,9 +204,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('src_dir', type=Path)
     ap.add_argument('dst_dir', type=Path)
+    ap.add_argument('--mtime-only', action='store_true')
     args = ap.parse_args()
 
-    org = PhotoOrganizer(args.src_dir, args.dst_dir)
+    org = PhotoOrganizer(args.src_dir, args.dst_dir, args.mtime_only)
     org.start()
 
 
