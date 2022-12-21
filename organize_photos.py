@@ -100,7 +100,9 @@ class PhotoOrganizer:
 
     def _prepare_rename_tasks(self) -> None:
 
-        for photo in tqdm(self.src_dir.rglob('*.*')):
+        # Prime the generator so that we can see progress in tqdm
+        photos = sorted(self.src_dir.rglob('*.*'))
+        for photo in tqdm(photos):
             if photo.suffix.lower() not in self.allowed_exts:
                 continue
 
