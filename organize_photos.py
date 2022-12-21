@@ -64,19 +64,20 @@ class PhotoOrganizer:
 
     def get_time_taken_pillow(self, photo: Path) -> datetime:
         image = Image.open(photo)
-        _exif = image.getexif()
+        _exif1 = image.getexif()
+        _exif2 = _exif1.get_ifd(0x8769)
+        _exif = dict(_exif1) | _exif2
         exif = {
             ExifTags.TAGS[k]: v
             for k, v in _exif.items()
             if k in ExifTags.TAGS and type(v) is not bytes
         }
-        try:
-            _exit_dt: str = exif['DateTime']
-        except KeyError:
+        _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized')
+        if _exif_dt is None:
             msg = 'Cannot extract EXIF DateTime'
-            raise PhotoException(photo, msg) from None
+            raise PhotoException(photo, msg)
         else:
-            exif_dt = datetime.strptime(_exit_dt, '%Y:%m:%d %H:%M:%S')
+            exif_dt = datetime.strptime(_exif_dt, '%Y:%m:%d %H:%M:%S')
         return exif_dt
 
     def get_time_taken_mediainfo(self, photo: Path) -> datetime:
