@@ -84,6 +84,10 @@ class PhotoOrganizer:
         #if exif.get('Software'):
         #    return self.parse_timestamp(photo.stat().st_mtime)
 
+        # If photo does not have EXIF at all, use mtime
+        if not exif:
+            return self.parse_timestamp(photo.stat().st_mtime)
+
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized')
         if _exif_dt is None:
@@ -97,17 +101,17 @@ class PhotoOrganizer:
         mediainfo = MediaInfo.parse(photo)
         general_track = mediainfo.general_tracks[0]  # type: ignore
         if dt_str := general_track.comapplequicktimecreationdate:
-            assert dt_str.endswith('z')
+            assert dt_str.endswith('z'), 'comapplequicktimecreationdate should have Zulu marking'
             dt = isoparse(dt_str)
         elif dt_str := general_track.encoded_date or general_track.tagged_date:
-            assert dt_str.startswith('UTC') or dt_str.endswith('UTC')
+            assert dt_str.startswith('UTC') or dt_str.endswith('UTC'), 'encoded_date/tagged_date should have UTC marking'
             dt_str = dt_str.removeprefix('UTC').removesuffix('UTC').strip()
             dt = isoparse(dt_str)
         else:
             raise PhotoException(photo, 'Cannot extract datetime from mediainfo')
         # If dt is aware, it should be UTC
         if dt.tzinfo:
-            assert dt.tzinfo.utcoffset(None) == timedelta(0)
+            assert dt.tzinfo.utcoffset(None) == timedelta(0), 'tzinfo parsed from mediainfo should be UTC'
             local_dt = dt.astimezone(self.timezone)
         # If dt is naive, then attach UTC tz and convert to local dt
         else:
@@ -177,7 +181,10 @@ class PhotoOrganizer:
 
     def _confirm_rename(self) -> None:
         print('Rename the files, preview the tasks, save the tasks in CSV, or abort?')
-        resp = input('(R)ename/(p)review/(s)ave/(a)bort? ').lower()
+        try:
+            resp = input('(R)ename/(p)review/(s)ave/(a)bort? ').lower()
+        except KeyboardInterrupt:
+            return
 
         if resp == 'r':
             self._do_rename()
@@ -199,7 +206,9 @@ class PhotoOrganizer:
             src.rename(dst)
 
     def _preview_tasks(self) -> None:
+        print(f'Rename ({len(self.rename_tasks)}):')
         print(tabulate(self.rename_tasks))
+        print(f'Skip ({len(self.rename_tasks)}):')
         print(tabulate(self.skipped_items))
 
     def _save_tasks(self) -> None:
