@@ -138,9 +138,6 @@ class PhotoOrganizer:
 
             try:
                 dt = self.get_time_taken(photo)
-            except PhotoException as e:
-                self.skipped_items.append((e.photo, e.message))
-                continue
             except Exception as e:
                 msg = repr(e)
                 self.skipped_items.append((photo, msg))
