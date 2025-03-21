@@ -52,10 +52,7 @@ class PhotoOrganizer:
             dt = self.get_time_taken_pillow(photo)
         elif photo.suffix.lower() in self.mediainfo_exts:
             dt = self.get_time_taken_mediainfo(photo)
-        elif (
-            photo.suffix.lower() in self.screenshot_exts
-            or photo.parent.name == 'Screenshots'
-        ):
+        elif self.is_screenshot(photo):
             dt = self.parse_timestamp(photo.stat().st_mtime)
         else:
             raise RuntimeError('Unexpected exts.')
@@ -67,6 +64,9 @@ class PhotoOrganizer:
     def parse_timestamp(self, ts: int | float) -> datetime:
         '''Parse Unix timestamp into an aware datetime'''
         return datetime.fromtimestamp(ts, tz=self.timezone)
+
+    def is_screenshot(self, photo: Path) -> bool:
+        return photo.suffix.lower() in self.screenshot_exts or photo.parent.name == 'Screenshots'
 
     def get_time_taken_pillow(self, photo: Path) -> datetime:
         image = Image.open(photo)
@@ -140,8 +140,6 @@ class PhotoOrganizer:
             if photo.suffix.lower() not in self.allowed_exts:
                 continue
 
-            is_screenshot = photo.suffix.lower() in self.screenshot_exts
-
             try:
                 dt = self.get_time_taken(photo)
             except PhotoException as e:
@@ -153,7 +151,10 @@ class PhotoOrganizer:
                 continue
 
             # Compute filename
-            prefix = 'IMG_' if not is_screenshot else 'Screenshot_'
+            if self.is_screenshot(photo):
+                prefix = 'Screenshot_'
+            else:
+                prefix = 'IMG_'
             timestamp = dt.strftime('%Y%m%d_%H%M%S')
             # Generate a Git-like hash (first 7 chars of SHA-1)
             with open(photo, 'rb') as f:
