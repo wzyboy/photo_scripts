@@ -94,6 +94,9 @@ class PhotoOrganizer:
             tqdm.write(msg)
             return self.get_mtime(photo)
         else:
+            # Some software appends non-ASCII bytes like '下午'
+            # 'DateTime': '2018:12:25 18:19:37ä¸\x8bå\x8d\x88'
+            _exif_dt = _exif_dt[:19]
             exif_dt = self.timezone.localize(datetime.strptime(_exif_dt, '%Y:%m:%d %H:%M:%S'))
             return exif_dt
 
