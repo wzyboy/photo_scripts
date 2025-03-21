@@ -46,7 +46,7 @@ class PhotoOrganizer:
 
     def get_time_taken(self, photo: Path) -> datetime:
         if self.mtime_only:
-            return datetime.fromtimestamp(photo.stat().st_mtime)
+            return self.parse_timestamp(photo.stat().st_mtime)
 
         if photo.suffix.lower() in self.pillow_exts:
             dt = self.get_time_taken_pillow(photo)
@@ -56,11 +56,17 @@ class PhotoOrganizer:
             photo.suffix.lower() in self.screenshot_exts
             or photo.parent.name == 'Screenshots'
         ):
-            dt = datetime.fromtimestamp(photo.stat().st_mtime)
+            dt = self.parse_timestamp(photo.stat().st_mtime)
         else:
             raise RuntimeError('Unexpected exts.')
 
+        assert dt.tzinfo is None
         return dt
+
+    def parse_timestamp(self, ts: int | float) -> datetime:
+        '''Parse Unix timestamp into an aware datetime with local timezone,
+        then strip away the timezone and return a naive datetime'''
+        return datetime.fromtimestamp(ts, tz=self.timezone).replace(tzinfo=None)
 
     def get_time_taken_pillow(self, photo: Path) -> datetime:
         image = Image.open(photo)
@@ -75,7 +81,7 @@ class PhotoOrganizer:
 
         # If the photo is edited by some software, trust its mtime
         if exif.get('Software'):
-            dt = datetime.fromtimestamp(photo.stat().st_mtime)
+            dt = self.parse_timestamp(photo.stat().st_mtime)
             return dt
 
         # Extract dt from EXIF
