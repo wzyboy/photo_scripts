@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import datetime
 from datetime import timedelta
 from collections import deque
+from collections.abc import Iterable
 
 import pytz
 from tqdm import tqdm
@@ -114,13 +115,12 @@ class PhotoOrganizer:
         return local_dt
 
     def start(self):
-        # If src_dir is a file, just print the info and exit
         if self.src_dir.is_file():
-            print(self.get_time_taken(self.src_dir))
-            return
-
+            photo_paths = [self.src_dir]
+        else:
+            photo_paths = self.src_dir.rglob('*.*')
         try:
-            self._prepare_rename_tasks()
+            self._prepare_rename_tasks(photo_paths)
         except KeyboardInterrupt:
             print('KeyboardInterrupt')
 
@@ -130,10 +130,10 @@ class PhotoOrganizer:
         print(f'Collected {len(self.skipped_items)} skipped items.')
         self._confirm_rename()
 
-    def _prepare_rename_tasks(self) -> None:
+    def _prepare_rename_tasks(self, photo_paths: Iterable[Path]) -> None:
 
         # Prime the generator so that we can see progress in tqdm
-        photos = sorted(self.src_dir.rglob('*.*'))
+        photos = sorted(photo_paths)
         for photo in tqdm(photos):
             if photo.suffix.lower() not in self.allowed_exts:
                 continue
@@ -160,13 +160,17 @@ class PhotoOrganizer:
                     hash_obj.update(chunk)
             h = hash_obj.hexdigest()[:7]
             fn = f'{prefix}{timestamp}_{h}{photo.suffix.lower()}'
+
             full_path = self.dst_dir / str(dt.year) / fn
-            if not full_path.exists():
-                rename_task = (photo, full_path)
-            else:
+            if full_path.exists():
+                # Ignore already renamed files (allow idempotent operations)
+                if full_path.samefile(photo):
+                    continue
                 msg = f'Destination already exists: {full_path}'
                 self.skipped_items.append((photo, msg))
                 continue
+
+            rename_task = (photo, full_path)
 
             # Queue rename task
             self.rename_tasks.append(rename_task)
@@ -214,7 +218,7 @@ def main():
 
     ap = argparse.ArgumentParser()
     ap.add_argument('src_dir', type=Path)
-    ap.add_argument('dst_dir', type=Path)
+    ap.add_argument('-d', dest='dst_dir', type=Path, default='.')
     ap.add_argument('--mtime-only', action='store_true')
     args = ap.parse_args()
 
