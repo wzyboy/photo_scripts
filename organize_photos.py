@@ -21,12 +21,6 @@ from dateutil.parser import isoparse
 register_heif_opener()
 
 
-class PhotoException(Exception):
-    def __init__(self, photo: Path, message) -> None:
-        self.photo = photo
-        self.message = message
-
-
 class PhotoOrganizer:
 
     pillow_exts = ('.jpg', '.jpeg', '.heic')
@@ -34,8 +28,6 @@ class PhotoOrganizer:
     screenshot_exts = ('.png', '.gif', '.bmp', '.webp')
     allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
     timezone = pytz.timezone('America/Vancouver')
-
-    #known_software = ('Instagram', 'Google', 'Picasa', 'Adobe Photoshop CC (Windows)', 'Polarr Photo Editor')
 
     def __init__(self, src_dir: Path, dst_dir: Path, mtime_only: bool = False) -> None:
         self.src_dir = src_dir
@@ -90,8 +82,7 @@ class PhotoOrganizer:
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized') or exif.get('DateTime')
         if _exif_dt is None:
-            msg = f'{photo}: Cannot extract datetime from EXIF: {exif}'
-            tqdm.write(msg)
+            tqdm.write(f'{photo}: Cannot extract datetime from EXIF: {exif}')
             return self.get_mtime(photo)
         else:
             # Some software appends non-ASCII bytes like '下午'
@@ -111,7 +102,8 @@ class PhotoOrganizer:
             dt_str = dt_str.removeprefix('UTC').removesuffix('UTC').strip()
             dt = isoparse(dt_str)
         else:
-            raise PhotoException(photo, 'Cannot extract datetime from mediainfo')
+            tqdm.write(f'{photo}: Cannot extract datetime from MediaInfo')
+            return self.get_mtime(photo)
         # If dt is aware, convert to local dt
         if dt.tzinfo:
             local_dt = dt.astimezone(self.timezone)
