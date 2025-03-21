@@ -207,7 +207,7 @@ class PhotoOrganizer:
     def _preview_tasks(self) -> None:
         print(f'Rename ({len(self.rename_tasks)}):')
         print(tabulate(self.rename_tasks))
-        print(f'Skip ({len(self.rename_tasks)}):')
+        print(f'Skip ({len(self.skipped_items)}):')
         print(tabulate(self.skipped_items))
 
     def _save_tasks(self) -> None:
