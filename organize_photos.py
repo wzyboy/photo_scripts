@@ -36,35 +36,35 @@ class PhotoOrganizer:
         self.skipped_items = deque()
         self.mtime_only = mtime_only
 
-    def get_time_taken(self, photo: Path) -> datetime:
+    def get_time_taken(self, photo: Path) -> tuple[datetime, str]:
         if self.mtime_only:
-            return self.get_mtime(photo)
+            return self.get_time_from_file(photo)
 
         if photo.suffix.lower() in self.pillow_exts:
-            dt = self.get_time_taken_pillow(photo)
+            dt, dt_source = self.get_time_from_pillow(photo)
         elif photo.suffix.lower() in self.mediainfo_exts:
-            dt = self.get_time_taken_mediainfo(photo)
+            dt, dt_source = self.get_time_from_mediainfo(photo)
         elif self.is_screenshot(photo):
-            dt = self.get_mtime(photo)
+            dt, dt_source = self.get_time_from_file(photo)
         else:
             raise RuntimeError('Unexpected exts.')
 
         assert dt.tzinfo is not None, 'timezone does not exist'
         assert str(dt.tzinfo) == str(self.timezone), 'timezone does not match'
-        return dt
+        return dt, dt_source
 
     def parse_timestamp(self, ts: int | float) -> datetime:
         '''Parse Unix timestamp into an aware datetime'''
         return datetime.fromtimestamp(ts, tz=self.timezone)
 
-    def get_mtime(self, photo: Path) -> datetime:
+    def get_time_from_file(self, photo: Path) -> tuple[datetime, str]:
         '''Return file mtime as an aware datetime'''
-        return self.parse_timestamp(photo.stat().st_mtime)
+        return self.parse_timestamp(photo.stat().st_mtime), 'mtime'
 
     def is_screenshot(self, photo: Path) -> bool:
         return photo.suffix.lower() in self.screenshot_exts or photo.parent.name == 'Screenshots'
 
-    def get_time_taken_pillow(self, photo: Path) -> datetime:
+    def get_time_from_pillow(self, photo: Path) -> tuple[datetime, str]:
         image = Image.open(photo)
         _exif1 = image.getexif()
         _exif2 = _exif1.get_ifd(0x8769)
@@ -77,21 +77,21 @@ class PhotoOrganizer:
 
         # If photo does not have EXIF at all, use mtime
         if not exif:
-            return self.get_mtime(photo)
+            return self.get_time_from_file(photo)
 
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized') or exif.get('DateTime')
         if _exif_dt is None:
             tqdm.write(f'{photo}: Cannot extract datetime from EXIF: {exif}')
-            return self.get_mtime(photo)
+            return self.get_time_from_file(photo)
         else:
             # Some software appends non-ASCII bytes like '下午'
             # 'DateTime': '2018:12:25 18:19:37ä¸\x8bå\x8d\x88'
             _exif_dt = _exif_dt[:19]
             exif_dt = self.timezone.localize(datetime.strptime(_exif_dt, '%Y:%m:%d %H:%M:%S'))
-            return exif_dt
+            return exif_dt, 'EXIF'
 
-    def get_time_taken_mediainfo(self, photo: Path) -> datetime:
+    def get_time_from_mediainfo(self, photo: Path) -> tuple[datetime, str]:
         mediainfo = MediaInfo.parse(photo)
         general_track = mediainfo.general_tracks[0]  # type: ignore
         if dt_str := general_track.comapplequicktimecreationdate:
@@ -103,14 +103,14 @@ class PhotoOrganizer:
             dt = isoparse(dt_str)
         else:
             tqdm.write(f'{photo}: Cannot extract datetime from MediaInfo')
-            return self.get_mtime(photo)
+            return self.get_time_from_file(photo)
         # If dt is aware, convert to local dt
         if dt.tzinfo:
             local_dt = dt.astimezone(self.timezone)
         # If dt is naive, assume it's UTC
         else:
             local_dt = pytz.utc.localize(dt).astimezone(self.timezone)
-        return local_dt
+        return local_dt, 'MediaInfo'
 
     def start(self):
         if self.src_dir.is_file():
@@ -137,7 +137,7 @@ class PhotoOrganizer:
                 continue
 
             try:
-                dt = self.get_time_taken(photo)
+                dt, dt_source = self.get_time_taken(photo)
             except Exception as e:
                 msg = repr(e)
                 self.skipped_items.append((photo, msg))
@@ -166,7 +166,7 @@ class PhotoOrganizer:
                 self.skipped_items.append((photo, msg))
                 continue
 
-            rename_task = (photo, full_path)
+            rename_task = (photo, full_path, dt_source)
 
             # Queue rename task
             self.rename_tasks.append(rename_task)
@@ -206,7 +206,7 @@ class PhotoOrganizer:
     def _save_tasks(self) -> None:
         with open('rename_tasks.csv', 'w') as f:
             rename_tasks_csv = csv.writer(f)
-            rename_tasks_csv.writerow(['src', 'dst'])
+            rename_tasks_csv.writerow(['src', 'dst', 'dt_source'])
             rename_tasks_csv.writerows(self.rename_tasks)
         with open('skipped_items.csv', 'w') as f:
             skipped_items_csv = csv.writer(f)
