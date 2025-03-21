@@ -60,13 +60,13 @@ class PhotoOrganizer:
         else:
             raise RuntimeError('Unexpected exts.')
 
-        assert dt.tzinfo is None
+        assert dt.tzinfo is not None, 'timezone does not exist'
+        assert str(dt.tzinfo) == str(self.timezone), 'timezone does not match'
         return dt
 
     def parse_timestamp(self, ts: int | float) -> datetime:
-        '''Parse Unix timestamp into an aware datetime with local timezone,
-        then strip away the timezone and return a naive datetime'''
-        return datetime.fromtimestamp(ts, tz=self.timezone).replace(tzinfo=None)
+        '''Parse Unix timestamp into an aware datetime'''
+        return datetime.fromtimestamp(ts, tz=self.timezone)
 
     def get_time_taken_pillow(self, photo: Path) -> datetime:
         image = Image.open(photo)
@@ -81,8 +81,7 @@ class PhotoOrganizer:
 
         # If the photo is edited by some software, trust its mtime
         if exif.get('Software'):
-            dt = self.parse_timestamp(photo.stat().st_mtime)
-            return dt
+            return self.parse_timestamp(photo.stat().st_mtime)
 
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized')
@@ -90,8 +89,7 @@ class PhotoOrganizer:
             msg = f'Cannot extract dt from EXIF: {exif}'
             raise PhotoException(photo, msg)
         else:
-            exif_dt = isoparse(_exif_dt)
-            assert exif_dt.tzinfo is None
+            exif_dt = self.timezone.localize(isoparse(_exif_dt))
         return exif_dt
 
     def get_time_taken_mediainfo(self, photo: Path) -> datetime:
@@ -109,13 +107,11 @@ class PhotoOrganizer:
         # If dt is aware, it should be UTC
         if dt.tzinfo:
             assert dt.tzinfo.utcoffset(None) == timedelta(0)
-            aware_local_dt = dt.astimezone(self.timezone)
+            local_dt = dt.astimezone(self.timezone)
         # If dt is naive, then attach UTC tz and convert to local dt
         else:
-            aware_local_dt = pytz.utc.localize(dt).astimezone(self.timezone)
-        # Finally, make dt naive
-        naive_local_dt = aware_local_dt.replace(tzinfo=None)
-        return naive_local_dt
+            local_dt = pytz.utc.localize(dt).astimezone(self.timezone)
+        return local_dt
 
     def start(self):
         # If src_dir is a file, just print the info and exit
