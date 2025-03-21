@@ -81,8 +81,8 @@ class PhotoOrganizer:
         }
 
         # If the photo is edited by some software, trust its mtime
-        if exif.get('Software'):
-            return self.parse_timestamp(photo.stat().st_mtime)
+        #if exif.get('Software'):
+        #    return self.parse_timestamp(photo.stat().st_mtime)
 
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized')
@@ -90,7 +90,7 @@ class PhotoOrganizer:
             msg = f'Cannot extract dt from EXIF: {exif}'
             raise PhotoException(photo, msg)
         else:
-            exif_dt = self.timezone.localize(isoparse(_exif_dt))
+            exif_dt = self.timezone.localize(datetime.strptime(_exif_dt, '%Y:%m:%d %H:%M:%S'))
         return exif_dt
 
     def get_time_taken_mediainfo(self, photo: Path) -> datetime:
