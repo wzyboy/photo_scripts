@@ -5,7 +5,6 @@ import argparse
 import hashlib
 from pathlib import Path
 from datetime import datetime
-from datetime import timedelta
 from collections import deque
 from collections.abc import Iterable
 
@@ -89,7 +88,7 @@ class PhotoOrganizer:
             return self.parse_timestamp(photo.stat().st_mtime)
 
         # Extract dt from EXIF
-        _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized')
+        _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized') or exif.get('DateTime')
         if _exif_dt is None:
             msg = f'Cannot extract dt from EXIF: {exif}'
             raise PhotoException(photo, msg)
@@ -101,7 +100,7 @@ class PhotoOrganizer:
         mediainfo = MediaInfo.parse(photo)
         general_track = mediainfo.general_tracks[0]  # type: ignore
         if dt_str := general_track.comapplequicktimecreationdate:
-            assert dt_str.endswith('z'), 'comapplequicktimecreationdate should have Zulu marking'
+            # com.apple.quicktime.creationdate         : 2018-10-08T21:24:34-0700
             dt = isoparse(dt_str)
         elif dt_str := general_track.encoded_date or general_track.tagged_date:
             assert dt_str.startswith('UTC') or dt_str.endswith('UTC'), 'encoded_date/tagged_date should have UTC marking'
@@ -109,11 +108,10 @@ class PhotoOrganizer:
             dt = isoparse(dt_str)
         else:
             raise PhotoException(photo, 'Cannot extract datetime from mediainfo')
-        # If dt is aware, it should be UTC
+        # If dt is aware, convert to local dt
         if dt.tzinfo:
-            assert dt.tzinfo.utcoffset(None) == timedelta(0), 'tzinfo parsed from mediainfo should be UTC'
             local_dt = dt.astimezone(self.timezone)
-        # If dt is naive, then attach UTC tz and convert to local dt
+        # If dt is naive, assume it's UTC
         else:
             local_dt = pytz.utc.localize(dt).astimezone(self.timezone)
         return local_dt
