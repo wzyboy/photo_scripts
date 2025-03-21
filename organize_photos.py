@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import csv
-import argparse
 import hashlib
+import argparse
 from pathlib import Path
 from datetime import datetime
 from collections import deque
@@ -46,14 +46,14 @@ class PhotoOrganizer:
 
     def get_time_taken(self, photo: Path) -> datetime:
         if self.mtime_only:
-            return self.parse_timestamp(photo.stat().st_mtime)
+            return self.get_mtime(photo)
 
         if photo.suffix.lower() in self.pillow_exts:
             dt = self.get_time_taken_pillow(photo)
         elif photo.suffix.lower() in self.mediainfo_exts:
             dt = self.get_time_taken_mediainfo(photo)
         elif self.is_screenshot(photo):
-            dt = self.parse_timestamp(photo.stat().st_mtime)
+            dt = self.get_mtime(photo)
         else:
             raise RuntimeError('Unexpected exts.')
 
@@ -64,6 +64,10 @@ class PhotoOrganizer:
     def parse_timestamp(self, ts: int | float) -> datetime:
         '''Parse Unix timestamp into an aware datetime'''
         return datetime.fromtimestamp(ts, tz=self.timezone)
+
+    def get_mtime(self, photo: Path) -> datetime:
+        '''Return file mtime as an aware datetime'''
+        return self.parse_timestamp(photo.stat().st_mtime)
 
     def is_screenshot(self, photo: Path) -> bool:
         return photo.suffix.lower() in self.screenshot_exts or photo.parent.name == 'Screenshots'
@@ -79,22 +83,19 @@ class PhotoOrganizer:
             if k in ExifTags.TAGS and type(v) is not bytes
         }
 
-        # If the photo is edited by some software, trust its mtime
-        #if exif.get('Software'):
-        #    return self.parse_timestamp(photo.stat().st_mtime)
-
         # If photo does not have EXIF at all, use mtime
         if not exif:
-            return self.parse_timestamp(photo.stat().st_mtime)
+            return self.get_mtime(photo)
 
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized') or exif.get('DateTime')
         if _exif_dt is None:
-            msg = f'Cannot extract dt from EXIF: {exif}'
-            raise PhotoException(photo, msg)
+            msg = f'{photo}: Cannot extract datetime from EXIF: {exif}'
+            tqdm.write(msg)
+            return self.get_mtime(photo)
         else:
             exif_dt = self.timezone.localize(datetime.strptime(_exif_dt, '%Y:%m:%d %H:%M:%S'))
-        return exif_dt
+            return exif_dt
 
     def get_time_taken_mediainfo(self, photo: Path) -> datetime:
         mediainfo = MediaInfo.parse(photo)
