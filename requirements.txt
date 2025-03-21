@@ -1,5 +1,0 @@
-tqdm
-pillow-heif
-pymediainfo
-tabulate
-pytz
