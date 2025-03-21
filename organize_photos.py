@@ -5,6 +5,7 @@ import argparse
 import hashlib
 from pathlib import Path
 from datetime import datetime
+from datetime import timedelta
 from collections import deque
 
 import pytz
@@ -14,6 +15,7 @@ from PIL import ExifTags
 from pillow_heif import register_heif_opener
 from pymediainfo import MediaInfo
 from tabulate import tabulate
+from dateutil.parser import isoparse
 
 
 register_heif_opener()
@@ -31,6 +33,7 @@ class PhotoOrganizer:
     mediainfo_exts = ('.mov', '.mp4')
     screenshot_exts = ('.png', '.gif', '.bmp', '.webp')
     allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
+    timezone = pytz.timezone('America/Vancouver')
 
     #known_software = ('Instagram', 'Google', 'Picasa', 'Adobe Photoshop CC (Windows)', 'Polarr Photo Editor')
 
@@ -81,26 +84,32 @@ class PhotoOrganizer:
             msg = f'Cannot extract dt from EXIF: {exif}'
             raise PhotoException(photo, msg)
         else:
-            exif_dt = datetime.strptime(_exif_dt, '%Y:%m:%d %H:%M:%S')
+            exif_dt = isoparse(_exif_dt)
+            assert exif_dt.tzinfo is None
         return exif_dt
 
     def get_time_taken_mediainfo(self, photo: Path) -> datetime:
         mediainfo = MediaInfo.parse(photo)
         general_track = mediainfo.general_tracks[0]  # type: ignore
-        if general_track.comapplequicktimecreationdate:
-            dt = datetime.strptime(general_track.comapplequicktimecreationdate, '%Y-%m-%dT%H:%M:%S%z')
-        elif general_track.encoded_date:
-            dt = datetime.strptime(general_track.encoded_date, 'UTC %Y-%m-%d %H:%M:%S')
-        elif general_track.tagged_date:
-            dt = datetime.strptime(general_track.tagged_date, 'UTC %Y-%m-%d %H:%M:%S')
+        if dt_str := general_track.comapplequicktimecreationdate:
+            assert dt_str.endswith('z')
+            dt = isoparse(dt_str)
+        elif dt_str := general_track.encoded_date or general_track.tagged_date:
+            assert dt_str.startswith('UTC') or dt_str.endswith('UTC')
+            dt_str = dt_str.removeprefix('UTC').removesuffix('UTC').strip()
+            dt = isoparse(dt_str)
         else:
-            raise PhotoException(photo, 'Cannot extract date from mediainfo')
-        # Attach to UTC tzinfo to naive dt, and convert to Vancouver time
-        if not dt.tzinfo:
-            dt = pytz.utc.localize(dt).astimezone(pytz.timezone('America/Vancouver'))
-        # Make naive (strip tzinfo)
-        dt = dt.replace(tzinfo=None)
-        return dt
+            raise PhotoException(photo, 'Cannot extract datetime from mediainfo')
+        # If dt is aware, it should be UTC
+        if dt.tzinfo:
+            assert dt.tzinfo.utcoffset(None) == timedelta(0)
+            aware_local_dt = dt.astimezone(self.timezone)
+        # If dt is naive, then attach UTC tz and convert to local dt
+        else:
+            aware_local_dt = pytz.utc.localize(dt).astimezone(self.timezone)
+        # Finally, make dt naive
+        naive_local_dt = aware_local_dt.replace(tzinfo=None)
+        return naive_local_dt
 
     def start(self):
         # If src_dir is a file, just print the info and exit
