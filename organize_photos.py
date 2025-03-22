@@ -3,6 +3,7 @@
 import csv
 import hashlib
 import argparse
+import concurrent.futures
 from pathlib import Path
 from datetime import datetime
 from collections import deque
@@ -47,7 +48,7 @@ class PhotoOrganizer:
         elif self.is_screenshot(photo):
             dt, dt_source = self.get_time_from_file(photo)
         else:
-            raise RuntimeError('Unexpected exts.')
+            raise RuntimeError(f'Unexpected extension: {photo}')
 
         assert dt.tzinfo is not None, 'timezone does not exist'
         assert str(dt.tzinfo) == str(self.timezone), 'timezone does not match'
@@ -82,7 +83,7 @@ class PhotoOrganizer:
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized') or exif.get('DateTime')
         if _exif_dt is None:
-            tqdm.write(f'{photo}: Cannot extract datetime from EXIF: {exif}')
+            #tqdm.write(f'{photo}: Cannot extract datetime from EXIF: {exif}')
             return self.get_time_from_file(photo)
         else:
             # Some software appends non-ASCII bytes like '下午'
@@ -117,59 +118,74 @@ class PhotoOrganizer:
             photo_paths = [self.src_dir]
         else:
             photo_paths = self.src_dir.rglob('*.*')
-        try:
-            self._prepare_rename_tasks(photo_paths)
-        except KeyboardInterrupt:
-            print('KeyboardInterrupt')
 
+        self._prepare_rename_tasks(photo_paths)
         self.rename_tasks = sorted(self.rename_tasks)
         self.skipped_items = sorted(self.skipped_items)
         print(f'Collected {len(self.rename_tasks)} rename tasks.')
         print(f'Collected {len(self.skipped_items)} skipped items.')
         self._confirm_rename()
 
+    def _get_rename_task(self, photo: Path) -> tuple[Path, Path, str] | None:
+        dt, dt_source = self.get_time_taken(photo)
+
+        # Compute filename
+        if self.is_screenshot(photo):
+            prefix = 'Screenshot_'
+        else:
+            prefix = 'IMG_'
+        timestamp = dt.strftime('%Y%m%d_%H%M%S')
+        # Generate a Git-like hash (first 7 chars of SHA-1)
+        with open(photo, 'rb') as f:
+            hash_obj = hashlib.sha1()
+            while chunk := f.read(1024 * 1024 * 10):  # 10 MiB
+                hash_obj.update(chunk)
+        h = hash_obj.hexdigest()[:7]
+        fn = f'{prefix}{timestamp}_{h}{photo.suffix.lower()}'
+
+        full_path = self.dst_dir / str(dt.year) / fn
+        if full_path.exists():
+            # Ignore already renamed files (allow idempotent operations)
+            if full_path.samefile(photo):
+                return None
+            msg = f'Destination already exists: {full_path}'
+            raise FileExistsError(msg)
+
+        rename_task = (photo, full_path, dt_source)
+        return rename_task
+
     def _prepare_rename_tasks(self, photo_paths: Iterable[Path]) -> None:
-
         # Prime the generator so that we can see progress in tqdm
-        photos = sorted(photo_paths)
-        for photo in tqdm(photos):
-            if photo.suffix.lower() not in self.allowed_exts:
-                continue
+        photos = sorted(p for p in photo_paths if p.suffix.lower() in self.allowed_exts)
 
-            try:
-                dt, dt_source = self.get_time_taken(photo)
-            except Exception as e:
-                msg = repr(e)
-                self.skipped_items.append((photo, msg))
-                continue
-
-            # Compute filename
-            if self.is_screenshot(photo):
-                prefix = 'Screenshot_'
-            else:
-                prefix = 'IMG_'
-            timestamp = dt.strftime('%Y%m%d_%H%M%S')
-            # Generate a Git-like hash (first 7 chars of SHA-1)
-            with open(photo, 'rb') as f:
-                hash_obj = hashlib.sha1()
-                while chunk := f.read(1024 * 1024 * 10):  # 10 MiB
-                    hash_obj.update(chunk)
-            h = hash_obj.hexdigest()[:7]
-            fn = f'{prefix}{timestamp}_{h}{photo.suffix.lower()}'
-
-            full_path = self.dst_dir / str(dt.year) / fn
-            if full_path.exists():
-                # Ignore already renamed files (allow idempotent operations)
-                if full_path.samefile(photo):
-                    continue
-                msg = f'Destination already exists: {full_path}'
-                self.skipped_items.append((photo, msg))
-                continue
-
-            rename_task = (photo, full_path, dt_source)
-
-            # Queue rename task
-            self.rename_tasks.append(rename_task)
+        tpe = concurrent.futures.ThreadPoolExecutor()
+        futures_map = {
+            tpe.submit(self._get_rename_task, photo): photo
+            for photo in photos
+        }
+        pending = set(futures_map.keys())
+        pbar = tqdm(total=len(futures_map))
+        try:
+            while pending:
+                # Wait for a few to complete
+                done_now, pending = concurrent.futures.wait(pending, timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED)
+                for future in done_now:
+                    try:
+                        rename_task = future.result()
+                    except Exception as e:
+                        photo = futures_map[future]
+                        msg = f'Error @ {photo}: {e!r}'
+                        tqdm.write(msg)
+                        self.skipped_items.append((photo, msg))
+                    else:
+                        if rename_task:
+                            self.rename_tasks.append(rename_task)
+                    pbar.update(1)
+        except KeyboardInterrupt:
+            tqdm.write('KeyboardInterrupt')
+            tpe.shutdown(wait=False, cancel_futures=True)
+        finally:
+            pbar.close()
 
     def _confirm_rename(self) -> None:
         print('Rename the files, preview the tasks, save the tasks in CSV, or abort?')
