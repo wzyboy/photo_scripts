@@ -230,7 +230,7 @@ class PhotoOrganizer:
         print('Preview of operations written to `rename_tasks.csv` and `skipped_items.csv`')
 
 
-def main():
+def cli():
 
     ap = argparse.ArgumentParser()
     ap.add_argument('src_dir', type=Path)
@@ -243,4 +243,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    cli()

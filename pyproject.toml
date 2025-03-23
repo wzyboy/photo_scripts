@@ -1,7 +1,7 @@
 [project]
-name = "photo-scripts"
+name = "phtorg"
 version = "0.1.0"
-description = "Add your description here"
+description = "A CLI tool that organizes photos and videos deterministically based on datetime + hash."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -12,3 +12,10 @@ dependencies = [
     "tabulate>=0.9.0",
     "tqdm>=4.64.1",
 ]
+
+[project.scripts]
+phtorg = 'phtorg.organizer:cli'
+
+[build-system]
+requires = ['hatchling']
+build-backend = 'hatchling.build'
