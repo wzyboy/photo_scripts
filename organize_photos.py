@@ -6,7 +6,6 @@ import argparse
 import concurrent.futures
 from pathlib import Path
 from datetime import datetime
-from collections import deque
 from collections.abc import Iterable
 
 import pytz
@@ -33,8 +32,8 @@ class PhotoOrganizer:
     def __init__(self, src_dir: Path, dst_dir: Path, mtime_only: bool = False) -> None:
         self.src_dir = src_dir
         self.dst_dir = dst_dir
-        self.rename_tasks = deque()
-        self.skipped_items = deque()
+        self.rename_tasks: list[tuple[Path, Path, str]] = []
+        self.skipped_items: list[tuple[Path, str]] = []
         self.mtime_only = mtime_only
 
     def get_time_taken(self, photo: Path) -> tuple[datetime, str]:
@@ -209,7 +208,7 @@ class PhotoOrganizer:
 
     def _do_rename(self) -> None:
         for task in tqdm(self.rename_tasks):
-            src, dst = task
+            src, dst, _ = task
             dst.parent.mkdir(parents=True, exist_ok=True)
             src.rename(dst)
 
