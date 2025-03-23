@@ -219,11 +219,11 @@ class PhotoOrganizer:
         print(tabulate(self.skipped_items))
 
     def _save_tasks(self) -> None:
-        with open('rename_tasks.csv', 'w') as f:
+        with open('rename_tasks.csv', 'w', encoding='utf-8') as f:
             rename_tasks_csv = csv.writer(f)
             rename_tasks_csv.writerow(['src', 'dst', 'dt_source'])
             rename_tasks_csv.writerows(self.rename_tasks)
-        with open('skipped_items.csv', 'w') as f:
+        with open('skipped_items.csv', 'w', encoding='utf-8') as f:
             skipped_items_csv = csv.writer(f)
             skipped_items_csv.writerow(['item', 'message'])
             skipped_items_csv.writerows(self.skipped_items)
