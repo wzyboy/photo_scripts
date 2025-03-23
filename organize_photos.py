@@ -25,7 +25,7 @@ register_heif_opener()
 class PhotoOrganizer:
 
     pillow_exts = ('.jpg', '.jpeg', '.heic')
-    mediainfo_exts = ('.mov', '.mp4')
+    mediainfo_exts = ('.mov', '.mp4', '.m4v')
     screenshot_exts = ('.png', '.gif', '.bmp', '.webp')
     allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
     timezone = pytz.timezone('America/Vancouver')
