@@ -2,6 +2,7 @@
 
 import csv
 import hashlib
+import logging
 import argparse
 import concurrent.futures
 from pathlib import Path
@@ -17,8 +18,11 @@ from pymediainfo import MediaInfo
 from tabulate import tabulate
 from dateutil.parser import isoparse
 
+from phtorg.logging import setup_logging
+
 
 register_heif_opener()
+log = logging.getLogger(__name__)
 
 
 class PhotoOrganizer:
@@ -82,7 +86,7 @@ class PhotoOrganizer:
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized') or exif.get('DateTime')
         if _exif_dt is None:
-            #tqdm.write(f'{photo}: Cannot extract datetime from EXIF: {exif}')
+            log.info(f'{photo}: Cannot extract datetime from EXIF: {exif}')
             return self.get_time_from_file(photo)
         else:
             # Some software appends non-ASCII bytes like '下午'
@@ -102,7 +106,7 @@ class PhotoOrganizer:
             dt_str = dt_str.removeprefix('UTC').removesuffix('UTC').strip()
             dt = isoparse(dt_str)
         else:
-            tqdm.write(f'{photo}: Cannot extract datetime from MediaInfo')
+            log.info(f'{photo}: Cannot extract datetime from MediaInfo')
             return self.get_time_from_file(photo)
         # If dt is aware, convert to local dt
         if dt.tzinfo:
@@ -121,8 +125,8 @@ class PhotoOrganizer:
         self._prepare_rename_tasks(photo_paths)
         self.rename_tasks = sorted(self.rename_tasks)
         self.skipped_items = sorted(self.skipped_items)
-        print(f'Collected {len(self.rename_tasks)} rename tasks.')
-        print(f'Collected {len(self.skipped_items)} skipped items.')
+        log.info(f'Collected {len(self.rename_tasks)} rename tasks.')
+        log.info(f'Collected {len(self.skipped_items)} skipped items.')
         self._confirm_rename()
 
     def _get_rename_task(self, photo: Path) -> tuple[Path, Path, str] | None:
@@ -174,14 +178,14 @@ class PhotoOrganizer:
                     except Exception as e:
                         photo = futures_map[future]
                         msg = f'Error @ {photo}: {e!r}'
-                        tqdm.write(msg)
+                        log.error(msg)
                         self.skipped_items.append((photo, msg))
                     else:
                         if rename_task:
                             self.rename_tasks.append(rename_task)
                     pbar.update(1)
         except KeyboardInterrupt:
-            tqdm.write('KeyboardInterrupt')
+            log.warning('KeyboardInterrupt')
             tpe.shutdown(wait=False, cancel_futures=True)
         finally:
             pbar.close()
@@ -227,11 +231,10 @@ class PhotoOrganizer:
             skipped_items_csv = csv.writer(f)
             skipped_items_csv.writerow(['item', 'message'])
             skipped_items_csv.writerows(self.skipped_items)
-        print('Preview of operations written to `rename_tasks.csv` and `skipped_items.csv`')
+        log.info('Preview of operations written to `rename_tasks.csv` and `skipped_items.csv`')
 
 
 def cli():
-
     ap = argparse.ArgumentParser()
     ap.add_argument('src_dir', type=Path)
     ap.add_argument('-d', dest='dst_dir', type=Path, default='.')
@@ -239,6 +242,7 @@ def cli():
     args = ap.parse_args()
 
     org = PhotoOrganizer(args.src_dir, args.dst_dir, args.mtime_only)
+    setup_logging()
     org.start()
 
 
