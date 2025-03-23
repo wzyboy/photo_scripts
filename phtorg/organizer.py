@@ -27,10 +27,10 @@ log = logging.getLogger(__name__)
 
 class PhotoOrganizer:
 
-    pillow_exts = ('.jpg', '.jpeg', '.heic')
-    mediainfo_exts = ('.mov', '.mp4', '.m4v')
-    screenshot_exts = ('.png', '.gif', '.bmp', '.webp')
-    allowed_exts = pillow_exts + mediainfo_exts + screenshot_exts
+    pillow_exts = {'.jpg', '.jpeg', '.heic'}
+    mediainfo_exts = {'.mov', '.mp4', '.m4v'}
+    screenshot_exts = {'.png', '.gif', '.bmp', '.webp'}
+    allowed_exts = pillow_exts | mediainfo_exts | screenshot_exts
     timezone = pytz.timezone('America/Vancouver')
 
     def __init__(self, src_dir: Path, dst_dir: Path, mtime_only: bool = False) -> None:
@@ -44,9 +44,10 @@ class PhotoOrganizer:
         if self.mtime_only:
             return self.get_time_from_file(photo)
 
-        if photo.suffix.lower() in self.pillow_exts:
+        ext = photo.suffix.lower()
+        if ext in self.pillow_exts:
             dt, dt_source = self.get_time_from_pillow(photo)
-        elif photo.suffix.lower() in self.mediainfo_exts:
+        elif ext in self.mediainfo_exts:
             dt, dt_source = self.get_time_from_mediainfo(photo)
         elif self.is_screenshot(photo):
             dt, dt_source = self.get_time_from_file(photo)
@@ -91,8 +92,8 @@ class PhotoOrganizer:
         else:
             # Some software appends non-ASCII bytes like '下午'
             # 'DateTime': '2018:12:25 18:19:37ä¸\x8bå\x8d\x88'
-            _exif_dt = _exif_dt[:19]
-            exif_dt = self.timezone.localize(datetime.strptime(_exif_dt, '%Y:%m:%d %H:%M:%S'))
+            _exif_dt = _exif_dt[:19].replace(':', '-', 2)
+            exif_dt = self.timezone.localize(isoparse(_exif_dt))
             return exif_dt, 'EXIF'
 
     def get_time_from_mediainfo(self, photo: Path) -> tuple[datetime, str]:
@@ -129,14 +130,8 @@ class PhotoOrganizer:
         log.info(f'Collected {len(self.skipped_items)} skipped items.')
         self._confirm_rename()
 
-    def _get_rename_task(self, photo: Path) -> tuple[Path, Path, str] | None:
-        dt, dt_source = self.get_time_taken(photo)
-
-        # Compute filename
-        if self.is_screenshot(photo):
-            prefix = 'Screenshot_'
-        else:
-            prefix = 'IMG_'
+    @staticmethod
+    def get_deterministic_filename(photo: Path, dt: datetime, prefix: str = 'IMG_') -> str:
         timestamp = dt.strftime('%Y%m%d_%H%M%S')
         # Generate a Git-like hash (first 7 chars of SHA-1)
         with open(photo, 'rb') as f:
@@ -145,6 +140,17 @@ class PhotoOrganizer:
                 hash_obj.update(chunk)
         h = hash_obj.hexdigest()[:7]
         fn = f'{prefix}{timestamp}_{h}{photo.suffix.lower()}'
+        return fn
+
+    def _get_rename_task(self, photo: Path) -> tuple[Path, Path, str] | None:
+        dt, dt_source = self.get_time_taken(photo)
+
+        # Compute filename
+        if self.is_screenshot(photo):
+            prefix = 'Screenshot_'
+        else:
+            prefix = 'IMG_'
+        fn = self.get_deterministic_filename(photo, dt, prefix)
 
         full_path = self.dst_dir / str(dt.year) / fn
         if full_path.exists():
