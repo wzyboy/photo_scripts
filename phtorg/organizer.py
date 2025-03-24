@@ -17,6 +17,8 @@ from pymediainfo import MediaInfo
 from tabulate import tabulate
 from dateutil.parser import isoparse
 
+from phtorg import constants
+
 
 
 register_heif_opener()
@@ -129,7 +131,7 @@ class PhotoOrganizer:
         self._confirm_rename()
 
     @staticmethod
-    def get_deterministic_filename(photo: Path, dt: datetime, prefix: str = 'IMG_') -> str:
+    def get_deterministic_filename(photo: Path, dt: datetime, prefix: str = constants.DEFAULT_PREFIX) -> str:
         timestamp = dt.strftime('%Y%m%d_%H%M%S')
         # Generate a Git-like hash (first 7 chars of SHA-1)
         with open(photo, 'rb') as f:
@@ -145,9 +147,9 @@ class PhotoOrganizer:
 
         # Compute filename
         if self.is_screenshot(photo):
-            prefix = 'Screenshot_'
+            prefix = constants.SCREENSHOT_PREFIX
         else:
-            prefix = 'IMG_'
+            prefix = constants.DEFAULT_PREFIX
         fn = self.get_deterministic_filename(photo, dt, prefix)
 
         full_path = self.dst_dir / str(dt.year) / fn
