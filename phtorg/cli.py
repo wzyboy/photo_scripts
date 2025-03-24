@@ -44,7 +44,7 @@ def analyze(src_dir: Path, datetime_source: tuple[str], only_errors: bool | None
     if only_errors:
         infos = (i for i in infos if i.errors)
 
-    print(tabulate(infos))
+    click.echo_via_pager(tabulate(sorted(infos), headers=['path', 'datetime', 'datetime_source', 'errors']))
 
 
 #@cli.command()

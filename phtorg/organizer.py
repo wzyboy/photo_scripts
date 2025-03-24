@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import re
+import io
 import csv
 import hashlib
 import logging
@@ -10,6 +11,7 @@ from datetime import datetime
 from collections.abc import Iterable
 
 import pytz
+import click
 from tqdm import tqdm
 from PIL import Image
 from PIL import ExifTags
@@ -272,10 +274,14 @@ class PhotoOrganizer:
             task.photo_info.path.rename(task.destination)
 
     def _preview_tasks(self) -> None:
-        print(f'Rename ({len(self.rename_tasks)}):')
-        print(tabulate([t.row() for t in self.rename_tasks], headers='keys'))
-        print(f'Skip ({len(self.skipped_items)}):')
-        print(tabulate([i.row() for i in self.skipped_items], headers='keys'))
+        text = io.StringIO()
+        text.write(f'Rename ({len(self.rename_tasks)}):\n')
+        text.write(tabulate([t.row() for t in self.rename_tasks], headers='keys'))
+        text.write('\n\n')
+        text.write(f'Skip ({len(self.skipped_items)}):\n')
+        text.write(tabulate([i.row() for i in self.skipped_items], headers='keys'))
+        text.write('\n\n')
+        click.echo_via_pager(text.getvalue())
 
     def _save_tasks(self) -> None:
         with open('rename_tasks.csv', 'w', encoding='utf-8') as f:
