@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import re
 import csv
 import hashlib
 import logging
@@ -45,6 +46,10 @@ class PhotoInfo:
             'errors': '; '.join(self.errors),
         }
 
+    @classmethod
+    def no_datetime(cls, path: Path, error: str):
+        return cls(path, None, None, [error])
+
 
 @dataclasses.dataclass(order=True)
 class RenameTask:
@@ -75,9 +80,10 @@ class PhotoOrganizer:
     allowed_exts = pillow_exts | mediainfo_exts | screenshot_exts
     timezone = pytz.timezone('America/Vancouver')
 
-    def __init__(self, src_dir: Path, dst_dir: Path) -> None:
+    def __init__(self, src_dir: Path, dst_dir: Path, allow_mtime: bool) -> None:
         self.src_dir = src_dir
         self.dst_dir = dst_dir
+        self.allow_mtime = allow_mtime
         self.rename_tasks: list[RenameTask] = []
         self.skipped_items: list[PhotoInfo] = []
 
@@ -122,26 +128,34 @@ class PhotoOrganizer:
             if k in ExifTags.TAGS and type(v) is not bytes
         }
 
-        # If photo does not have EXIF at all, use mtime
+        # No EXIF at all
         if not exif:
-            info = self.get_info_from_file(photo)
-            error = 'File is EXIF-compatible but no EXIF found'
-            info.errors.append(error)
-            return info
+            return PhotoInfo.no_datetime(photo, 'File is EXIF-compatible but no EXIF found')
 
-        # Extract dt from EXIF
+        # Extract datetime and offset from EXIF
+        # EXIF 2.31 (July 2016) introduced "OffsetTime", "OffsetTimeOriginal" and "OffsetTimeDigitized".
+        # They are formatted as seven ASCII characters (including the null terminator) denoting
+        # the hours and minutes of the offset, like +01:00 or -01:00.
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized') or exif.get('DateTime')
+        _exif_time_offset = exif.get('OffsetTimeOriginal') or exif.get('OffsetTimeDigitized') or exif.get('OffsetTime')
+        # If not conform to standard, treat it as garbage.
+        if _exif_time_offset is not None and not re.match(r'[+-]\d\d\:\d\d', _exif_time_offset):
+            _exif_time_offset = ''
+
+        # No datetime in EXIF
         if _exif_dt is None:
-            info = self.get_info_from_file(photo)
-            error = f'EXIF exists but no datetime found: {exif}'
-            info.errors.append(error)
-            return info
+            return PhotoInfo.no_datetime(photo, f'EXIF exists but no datetime found: {exif}')
+
+        # Parse datetime string
+        # Some software appends non-ASCII bytes like '下午'
+        # 'DateTime': '2018:12:25 18:19:37ä¸\x8bå\x8d\x88'
+        dt_str = _exif_dt[:19].replace(':', '-', 2)
+        if _exif_time_offset:
+            dt_str += _exif_time_offset
+            dt = isoparse(dt_str).astimezone(self.timezone)
         else:
-            # Some software appends non-ASCII bytes like '下午'
-            # 'DateTime': '2018:12:25 18:19:37ä¸\x8bå\x8d\x88'
-            _exif_dt = _exif_dt[:19].replace(':', '-', 2)
-            exif_dt = self.timezone.localize(isoparse(_exif_dt))
-            return PhotoInfo(photo, exif_dt, 'EXIF')
+            dt = self.timezone.localize(isoparse(dt_str))
+        return PhotoInfo(photo, dt, 'EXIF')
 
     def get_info_from_mediainfo(self, photo: Path) -> PhotoInfo:
         mediainfo = MediaInfo.parse(photo)
@@ -154,10 +168,7 @@ class PhotoOrganizer:
             dt_str = dt_str.removeprefix('UTC').removesuffix('UTC').strip()
             dt = isoparse(dt_str)
         else:
-            info = self.get_info_from_file(photo)
-            error = f'Cannot extract datetime from MediaInfo: {mediainfo}'
-            info.errors.append(error)
-            return info
+            return PhotoInfo.no_datetime(photo, f'Cannot extract datetime from MediaInfo: {mediainfo}')
 
         # If dt is aware, convert to local dt
         if dt.tzinfo:
@@ -194,7 +205,14 @@ class PhotoOrganizer:
 
     def _get_rename_task(self, photo: Path) -> RenameTask:
         info = self.get_info(photo)
-        assert info.datetime is not None, 'cannot rename without datetime'
+        if info.datetime is None:
+            if self.allow_mtime:
+                info = self.get_info_from_file(info.path)
+            else:
+                raise Exception('Cannot determine datetime from EXIF/MediaInfo. Fallback to mtime is not allowed.')
+
+        # Now we should have datetime
+        assert info.datetime is not None
 
         # Compute filename
         if self.is_screenshot(photo):
@@ -228,8 +246,7 @@ class PhotoOrganizer:
                         rename_task = future.result()
                     except Exception as e:
                         photo = futures_map[future]
-                        log.error(f'{photo}: {e!r}')
-                        info = PhotoInfo(photo, None, None, [repr(e)])
+                        info = PhotoInfo.no_datetime(photo, repr(e))
                         self.skipped_items.append(info)
                         continue
 

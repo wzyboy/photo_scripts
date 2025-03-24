@@ -13,9 +13,10 @@ def cli():
 @cli.command()
 @click.argument('src_dir', type=click.Path(exists=True, path_type=Path))
 @click.option('-d', '--dst-dir', type=click.Path(path_type=Path), default=Path('.'), help='Destination directory')
-def organize(src_dir: Path, dst_dir: Path):
+@click.option('--allow-mtime', is_flag=True, show_default=True, help='Allow using mtime for EXIF/MediaInfo files. For other files (PNG/GIF), mtime is always allowed.')
+def organize(src_dir: Path, dst_dir: Path, allow_mtime: bool):
     '''Organize photos/videos into folders'''
-    org = PhotoOrganizer(src_dir, dst_dir)
+    org = PhotoOrganizer(src_dir, dst_dir, allow_mtime)
     org.start()
 
 
