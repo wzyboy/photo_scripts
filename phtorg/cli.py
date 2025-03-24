@@ -12,7 +12,7 @@ def cli():
 
 @cli.command()
 @click.argument('src_dir', type=click.Path(exists=True, path_type=Path))
-@click.option('-d', '--dst-dir', type=click.Path(path_type=Path), default=Path.cwd(), help='Destination directory')
+@click.option('-d', '--dst-dir', type=click.Path(path_type=Path), default=Path('.'), help='Destination directory')
 def organize(src_dir: Path, dst_dir: Path):
     '''Organize photos/videos into folders'''
     org = PhotoOrganizer(src_dir, dst_dir)

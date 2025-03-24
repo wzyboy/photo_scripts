@@ -29,9 +29,8 @@ def setup_logging(log_dir: Path = Path.cwd(), prefix: str = 'phtorg') -> Path:
 
     console_handler = TqdmLoggingHandler()
     console_handler.setFormatter(formatter)
-    console_handler.setLevel(logging.WARN)
 
-    logger.addHandler(file_handler)
+    #logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
     return log_path
