@@ -13,10 +13,9 @@ def cli():
 @cli.command()
 @click.argument('src_dir', type=click.Path(exists=True, path_type=Path))
 @click.option('-d', '--dst-dir', type=click.Path(path_type=Path), default=Path.cwd(), help='Destination directory')
-@click.option('--mtime-only', is_flag=True, help='Use file mtime instead of metadata')
-def organize(src_dir: Path, dst_dir: Path, mtime_only: bool):
+def organize(src_dir: Path, dst_dir: Path):
     '''Organize photos/videos into folders'''
-    org = PhotoOrganizer(src_dir, dst_dir, mtime_only)
+    org = PhotoOrganizer(src_dir, dst_dir)
     org.start()
 
 

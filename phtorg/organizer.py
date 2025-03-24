@@ -33,24 +33,20 @@ class PhotoOrganizer:
     allowed_exts = pillow_exts | mediainfo_exts | screenshot_exts
     timezone = pytz.timezone('America/Vancouver')
 
-    def __init__(self, src_dir: Path, dst_dir: Path, mtime_only: bool = False) -> None:
+    def __init__(self, src_dir: Path, dst_dir: Path) -> None:
         self.src_dir = src_dir
         self.dst_dir = dst_dir
         self.rename_tasks: list[tuple[Path, Path, str]] = []
         self.skipped_items: list[tuple[Path, str]] = []
-        self.mtime_only = mtime_only
 
-    def get_time_taken(self, photo: Path) -> tuple[datetime, str]:
-        if self.mtime_only:
-            return self.get_time_from_file(photo)
-
+    def get_datetime(self, photo: Path) -> tuple[datetime, str]:
         ext = photo.suffix.lower()
         if ext in self.pillow_exts:
-            dt, dt_source = self.get_time_from_pillow(photo)
+            dt, dt_source = self.get_datetime_from_pillow(photo)
         elif ext in self.mediainfo_exts:
-            dt, dt_source = self.get_time_from_mediainfo(photo)
+            dt, dt_source = self.get_datetime_from_mediainfo(photo)
         elif self.is_screenshot(photo):
-            dt, dt_source = self.get_time_from_file(photo)
+            dt, dt_source = self.get_datetime_from_file(photo)
         else:
             raise RuntimeError(f'Unexpected extension: {photo}')
 
@@ -62,14 +58,14 @@ class PhotoOrganizer:
         '''Parse Unix timestamp into an aware datetime'''
         return datetime.fromtimestamp(ts, tz=self.timezone)
 
-    def get_time_from_file(self, photo: Path) -> tuple[datetime, str]:
+    def get_datetime_from_file(self, photo: Path) -> tuple[datetime, str]:
         '''Return file mtime as an aware datetime'''
         return self.parse_timestamp(photo.stat().st_mtime), 'mtime'
 
     def is_screenshot(self, photo: Path) -> bool:
         return photo.suffix.lower() in self.screenshot_exts or photo.parent.name == 'Screenshots'
 
-    def get_time_from_pillow(self, photo: Path) -> tuple[datetime, str]:
+    def get_datetime_from_pillow(self, photo: Path) -> tuple[datetime, str]:
         image = Image.open(photo)
         _exif1 = image.getexif()
         _exif2 = _exif1.get_ifd(0x8769)
@@ -82,13 +78,13 @@ class PhotoOrganizer:
 
         # If photo does not have EXIF at all, use mtime
         if not exif:
-            return self.get_time_from_file(photo)
+            return self.get_datetime_from_file(photo)
 
         # Extract dt from EXIF
         _exif_dt = exif.get('DateTimeOriginal') or exif.get('DateTimeDigitized') or exif.get('DateTime')
         if _exif_dt is None:
             log.info(f'{photo}: Cannot extract datetime from EXIF: {exif}')
-            return self.get_time_from_file(photo)
+            return self.get_datetime_from_file(photo)
         else:
             # Some software appends non-ASCII bytes like '下午'
             # 'DateTime': '2018:12:25 18:19:37ä¸\x8bå\x8d\x88'
@@ -96,7 +92,7 @@ class PhotoOrganizer:
             exif_dt = self.timezone.localize(isoparse(_exif_dt))
             return exif_dt, 'EXIF'
 
-    def get_time_from_mediainfo(self, photo: Path) -> tuple[datetime, str]:
+    def get_datetime_from_mediainfo(self, photo: Path) -> tuple[datetime, str]:
         mediainfo = MediaInfo.parse(photo)
         general_track = mediainfo.general_tracks[0]  # type: ignore
         if dt_str := general_track.comapplequicktimecreationdate:
@@ -108,7 +104,7 @@ class PhotoOrganizer:
             dt = isoparse(dt_str)
         else:
             log.info(f'{photo}: Cannot extract datetime from MediaInfo')
-            return self.get_time_from_file(photo)
+            return self.get_datetime_from_file(photo)
         # If dt is aware, convert to local dt
         if dt.tzinfo:
             local_dt = dt.astimezone(self.timezone)
@@ -143,7 +139,7 @@ class PhotoOrganizer:
         return fn
 
     def _get_rename_task(self, photo: Path) -> tuple[Path, Path, str] | None:
-        dt, dt_source = self.get_time_taken(photo)
+        dt, dt_source = self.get_datetime(photo)
 
         # Compute filename
         if self.is_screenshot(photo):
