@@ -12,7 +12,7 @@ Completed = tuple[T, Any]
 Failed = tuple[T, Exception]
 
 
-def tpe_submit(func: Callable, items: Iterable[T]) -> tuple[list[Completed], list[Failed]]:
+def tpe_submit(func: Callable, items: Iterable[T], raise_exception: bool = False) -> tuple[list[Completed], list[Failed]]:
     '''Run tasks through TPE with a progress bar.'''
     completed: list[Completed] = []
     failed: list[Failed] = []
@@ -33,6 +33,8 @@ def tpe_submit(func: Callable, items: Iterable[T]) -> tuple[list[Completed], lis
                 try:
                     result = future.result()
                 except Exception as e:
+                    if raise_exception:
+                        raise
                     item = futures_map[future]
                     failed.append((item, e))
                     continue

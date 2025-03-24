@@ -106,6 +106,14 @@ class PhotoOrganizer:
 
         return info
 
+    def iter_photo(self) -> Iterable[Path]:
+        if self.src_dir.is_file():
+            yield self.src_dir
+        else:
+            for p in self.src_dir.rglob('*.*'):
+                if p.suffix.lower() in self.allowed_exts:
+                    yield p
+
     def parse_timestamp(self, ts: int | float) -> datetime:
         '''Parse Unix timestamp into an aware datetime'''
         return datetime.fromtimestamp(ts, tz=self.timezone)
@@ -144,7 +152,7 @@ class PhotoOrganizer:
 
         # No datetime in EXIF
         if _exif_dt is None:
-            return PhotoInfo.no_datetime(photo, f'EXIF exists but no datetime found: {exif}')
+            return PhotoInfo.no_datetime(photo, 'EXIF exists but no datetime found')
 
         # Parse datetime string
         # Some software appends non-ASCII bytes like '下午'
@@ -168,7 +176,7 @@ class PhotoOrganizer:
             dt_str = dt_str.removeprefix('UTC').removesuffix('UTC').strip()
             dt = isoparse(dt_str)
         else:
-            return PhotoInfo.no_datetime(photo, f'Cannot extract datetime from MediaInfo: {mediainfo}')
+            return PhotoInfo.no_datetime(photo, 'Cannot extract datetime from MediaInfo')
 
         # If dt is aware, convert to local dt
         if dt.tzinfo:
@@ -179,12 +187,7 @@ class PhotoOrganizer:
         return PhotoInfo(photo, local_dt, 'MediaInfo')
 
     def start(self):
-        if self.src_dir.is_file():
-            photo_paths = [self.src_dir]
-        else:
-            photo_paths = self.src_dir.rglob('*.*')
-
-        self._prepare_rename_tasks(photo_paths)
+        self._prepare_rename_tasks(self.iter_photo())
         self.rename_tasks = sorted(self.rename_tasks)
         self.skipped_items = sorted(self.skipped_items)
         log.info(f'Collected {len(self.rename_tasks)} rename tasks.')
@@ -225,11 +228,8 @@ class PhotoOrganizer:
         rename_task = RenameTask(info, full_path)
         return rename_task
 
-    def _prepare_rename_tasks(self, photo_paths: Iterable[Path]) -> None:
-        # Prime the generator so that we can see progress in tqdm
-        photos = sorted(p for p in photo_paths if p.suffix.lower() in self.pillow_exts)
-
-        completed, failed = tpe_submit(self._get_rename_task, photos)
+    def _prepare_rename_tasks(self, photos: Iterable[Path]) -> None:
+        completed, failed = tpe_submit(self._get_rename_task, sorted(photos))
         for photo, task in completed:
             # Validate
             if task.destination.exists():

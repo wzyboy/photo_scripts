@@ -1,8 +1,10 @@
 from pathlib import Path
 
 import click
-from phtorg.organizer import PhotoOrganizer
+from tabulate import tabulate
+from phtorg.tpe import tpe_submit
 from phtorg.logging import setup_logging
+from phtorg.organizer import PhotoOrganizer
 
 
 @click.group()
@@ -18,6 +20,30 @@ def organize(src_dir: Path, dst_dir: Path, allow_mtime: bool):
     '''Organize photos/videos into folders'''
     org = PhotoOrganizer(src_dir, dst_dir, allow_mtime)
     org.start()
+
+
+@cli.command()
+@click.argument('src_dir', type=click.Path(exists=True, path_type=Path))
+@click.option(
+    '--datetime-source',
+    type=click.Choice(['EXIF', 'MediaInfo', 'mtime'], case_sensitive=False),
+    multiple=True,
+    help='Filter by datetime_source (can be used multiple times)'
+)
+@click.option('--only-errors', is_flag=True, default=False)
+def analyze(src_dir: Path, datetime_source: tuple[str], only_errors: bool | None):
+    '''Analyze photos/videos for datetime'''
+    org = PhotoOrganizer(src_dir, Path('.'), False)
+    completed, _ = tpe_submit(org.get_info, org.iter_photo(), raise_exception=True)
+    infos = (info for _, info in completed)
+
+    # Apply filters
+    if datetime_source:
+        infos = (i for i in infos if i.datetime_source in datetime_source)
+    if only_errors:
+        infos = (i for i in infos if i.errors)
+
+    print(tabulate(infos))
 
 
 #@cli.command()
