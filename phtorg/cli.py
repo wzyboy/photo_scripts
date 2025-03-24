@@ -18,7 +18,8 @@ def cli():
 @click.option('--allow-mtime', is_flag=True, show_default=True, help='Allow using mtime for EXIF/MediaInfo files. For other files (PNG/GIF), mtime is always allowed.')
 def organize(src_dir: Path, dst_dir: Path, allow_mtime: bool):
     '''Organize photos/videos into folders'''
-    org = PhotoOrganizer(src_dir, dst_dir, allow_mtime)
+    org = PhotoOrganizer(src_dir, dst_dir)
+    org.allow_mtime = allow_mtime
     org.start()
 
 
@@ -33,7 +34,7 @@ def organize(src_dir: Path, dst_dir: Path, allow_mtime: bool):
 @click.option('--only-errors', is_flag=True, default=False)
 def analyze(src_dir: Path, datetime_source: tuple[str], only_errors: bool | None):
     '''Analyze photos/videos for datetime'''
-    org = PhotoOrganizer(src_dir, Path('.'), False)
+    org = PhotoOrganizer(src_dir, Path('.'))
     completed, _ = tpe_submit(org.get_info, org.iter_photo(), raise_exception=True)
     infos = (info for _, info in completed)
 
