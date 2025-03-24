@@ -5,7 +5,6 @@ import csv
 import hashlib
 import logging
 import dataclasses
-import concurrent.futures
 from pathlib import Path
 from datetime import datetime
 from collections.abc import Iterable
@@ -20,6 +19,7 @@ from tabulate import tabulate
 from dateutil.parser import isoparse
 
 from phtorg import constants
+from phtorg.tpe import tpe_submit
 
 
 register_heif_opener()
@@ -227,46 +227,24 @@ class PhotoOrganizer:
 
     def _prepare_rename_tasks(self, photo_paths: Iterable[Path]) -> None:
         # Prime the generator so that we can see progress in tqdm
-        photos = sorted(p for p in photo_paths if p.suffix.lower() in self.allowed_exts)
+        photos = sorted(p for p in photo_paths if p.suffix.lower() in self.pillow_exts)
 
-        tpe = concurrent.futures.ThreadPoolExecutor()
-        futures_map = {
-            tpe.submit(self._get_rename_task, photo): photo
-            for photo in photos
-        }
-        pending = set(futures_map.keys())
-        pbar = tqdm(total=len(futures_map))
-        try:
-            while pending:
-                # Wait for a few to complete
-                done_now, pending = concurrent.futures.wait(pending, timeout=0.1, return_when=concurrent.futures.FIRST_COMPLETED)
-                for future in done_now:
-                    pbar.update(1)
-                    try:
-                        rename_task = future.result()
-                    except Exception as e:
-                        photo = futures_map[future]
-                        info = PhotoInfo.no_datetime(photo, repr(e))
-                        self.skipped_items.append(info)
-                        continue
-
-                    # Validate
-                    if rename_task.destination.exists():
-                        # Allow idempotent operations: don't rename a file
-                        # if its filename is already what we want
-                        if rename_task.destination.samefile(rename_task.photo_info.path):
-                            continue
-                        info = rename_task.photo_info
-                        info.errors.append(f'Destination already exists: {rename_task.destination}')
-                        self.skipped_items.append(info)
-                    else:
-                        self.rename_tasks.append(rename_task)
-
-        except KeyboardInterrupt:
-            log.warning('KeyboardInterrupt')
-            tpe.shutdown(wait=False, cancel_futures=True)
-        finally:
-            pbar.close()
+        completed, failed = tpe_submit(self._get_rename_task, photos)
+        for photo, task in completed:
+            # Validate
+            if task.destination.exists():
+                # Allow idempotent operations: don't rename a file
+                # if its filename is already what we want
+                if task.destination.samefile(task.photo_info.path):
+                    continue
+                info = task.photo_info
+                info.errors.append(f'Destination already exists: {task.destination}')
+                self.skipped_items.append(info)
+            else:
+                self.rename_tasks.append(task)
+        for photo, exception in failed:
+            info = PhotoInfo.no_datetime(photo, repr(exception))
+            self.skipped_items.append(info)
 
     def _confirm_rename(self) -> None:
         print('Rename the files, preview the tasks, save the tasks in CSV, or abort?')
