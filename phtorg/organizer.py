@@ -3,7 +3,6 @@
 import csv
 import hashlib
 import logging
-import argparse
 import concurrent.futures
 from pathlib import Path
 from datetime import datetime
@@ -18,7 +17,6 @@ from pymediainfo import MediaInfo
 from tabulate import tabulate
 from dateutil.parser import isoparse
 
-from phtorg.logging import setup_logging
 
 
 register_heif_opener()
@@ -238,19 +236,3 @@ class PhotoOrganizer:
             skipped_items_csv.writerow(['item', 'message'])
             skipped_items_csv.writerows(self.skipped_items)
         log.info('Preview of operations written to `rename_tasks.csv` and `skipped_items.csv`')
-
-
-def cli():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('src_dir', type=Path)
-    ap.add_argument('-d', dest='dst_dir', type=Path, default='.')
-    ap.add_argument('--mtime-only', action='store_true')
-    args = ap.parse_args()
-
-    org = PhotoOrganizer(args.src_dir, args.dst_dir, args.mtime_only)
-    setup_logging()
-    org.start()
-
-
-if __name__ == '__main__':
-    cli()

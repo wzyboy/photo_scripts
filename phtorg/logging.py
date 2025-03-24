@@ -24,7 +24,7 @@ def setup_logging(log_dir: Path = Path.cwd(), prefix: str = 'phtorg') -> Path:
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
-    file_handler = logging.FileHandler(log_path, encoding='utf-8')
+    file_handler = logging.FileHandler(log_path, encoding='utf-8', delay=True)
     file_handler.setFormatter(formatter)
 
     console_handler = TqdmLoggingHandler()
@@ -34,5 +34,4 @@ def setup_logging(log_dir: Path = Path.cwd(), prefix: str = 'phtorg') -> Path:
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
-    logging.info(f'Logging started. Writing to {log_path}')
     return log_path
