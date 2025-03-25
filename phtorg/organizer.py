@@ -80,14 +80,14 @@ class PhotoOrganizer:
     mediainfo_exts = {'.mov', '.mp4', '.m4v'}
     screenshot_exts = {'.png', '.gif', '.bmp', '.webp'}
     allowed_exts = pillow_exts | mediainfo_exts | screenshot_exts
-    timezone = pytz.timezone('America/Vancouver')
     allow_mtime = False
 
-    def __init__(self, src_dir: Path, dst_dir: Path) -> None:
+    def __init__(self, src_dir: Path, dst_dir: Path, timezone_name: str) -> None:
         self.src_dir = src_dir
         self.dst_dir = dst_dir
         self.rename_tasks: list[RenameTask] = []
         self.skipped_items: list[PhotoInfo] = []
+        self.timezone = pytz.timezone(timezone_name)
 
     def get_info(self, photo: Path) -> PhotoInfo:
         ext = photo.suffix.lower()
