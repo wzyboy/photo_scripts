@@ -95,8 +95,8 @@ class PhotoOrganizer:
             info = self.get_info_from_pillow(photo)
         elif ext in self.mediainfo_exts:
             info = self.get_info_from_mediainfo(photo)
-        elif self.is_screenshot(photo):
-            info = self.get_info_from_file(photo)
+        elif ext in self.screenshot_exts:
+            info = PhotoInfo.no_datetime(photo, 'Datetime extraction is skipped for this type of file')
         else:
             raise RuntimeError(f'Unexpected extension: {photo}')
 
@@ -119,9 +119,6 @@ class PhotoOrganizer:
     def parse_timestamp(self, ts: int | float) -> datetime:
         '''Parse Unix timestamp into an aware datetime'''
         return datetime.fromtimestamp(ts, tz=self.timezone)
-
-    def is_screenshot(self, photo: Path) -> bool:
-        return photo.suffix.lower() in self.screenshot_exts or photo.parent.name == 'Screenshots'
 
     def get_info_from_file(self, photo: Path) -> PhotoInfo:
         dt = self.parse_timestamp(photo.stat().st_mtime)
@@ -220,11 +217,7 @@ class PhotoOrganizer:
         assert info.datetime is not None
 
         # Compute filename
-        if self.is_screenshot(photo):
-            prefix = constants.SCREENSHOT_PREFIX
-        else:
-            prefix = constants.DEFAULT_PREFIX
-        fn = self.get_deterministic_filename(photo, info.datetime, prefix)
+        fn = self.get_deterministic_filename(photo, info.datetime)
 
         full_path = self.dst_dir / str(info.datetime.year) / fn
         rename_task = RenameTask(info, full_path)

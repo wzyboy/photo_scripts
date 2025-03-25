@@ -7,5 +7,4 @@
 # IMG_20250323_123456_a1b2c3d.jpg
 
 DEFAULT_PREFIX = 'IMG_'
-SCREENSHOT_PREFIX = 'Screenshot_'
 DATETIME_FMT = '%Y%m%d_%H%M%S'
