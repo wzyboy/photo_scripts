@@ -29,7 +29,7 @@ Alice regularly exports photos and videos from her iPhone into a folder like `20
    Some files are left behind — usually screenshots or media saved from messaging apps whose EXIF/MediaInfo are not available. To organize those using the file's modification time (mtime) as a fallback, she runs:
 
    ```bash
-   phtorg organize --allow-mtime 2025-03.import -d Misc_Media
+   phtorg --allow-mtime organize 2025-03.import -d Misc_Media
    ```
 
    This step renames and relocates files into `Misc_Media` folder.

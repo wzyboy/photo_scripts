@@ -100,8 +100,13 @@ class PhotoOrganizer:
         else:
             raise RuntimeError(f'Unexpected extension: {photo}')
 
-        # Validation
-        if info.datetime is not None:
+        if info.datetime is None:
+            if self.allow_mtime:
+                info = self.get_info_from_file(info.path)
+            else:
+                raise Exception('Cannot determine datetime from EXIF/MediaInfo. Fallback to mtime is not allowed.')
+        else:
+            # Validate timezone
             tzinfo = info.datetime.tzinfo
             assert tzinfo is not None, 'timezone does not exist'
             assert str(tzinfo) == str(self.timezone), 'timezone does not match'
@@ -207,13 +212,6 @@ class PhotoOrganizer:
 
     def _get_rename_task(self, photo: Path) -> RenameTask:
         info = self.get_info(photo)
-        if info.datetime is None:
-            if self.allow_mtime:
-                info = self.get_info_from_file(info.path)
-            else:
-                raise Exception('Cannot determine datetime from EXIF/MediaInfo. Fallback to mtime is not allowed.')
-
-        # Now we should have datetime
         assert info.datetime is not None
 
         # Compute filename
