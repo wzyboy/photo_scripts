@@ -195,7 +195,7 @@ class PhotoOrganizer:
 
     @staticmethod
     def get_deterministic_filename(photo: Path, dt: datetime, prefix: str = constants.DEFAULT_PREFIX) -> str:
-        timestamp = dt.strftime('%Y%m%d_%H%M%S')
+        timestamp = dt.strftime(constants.DATETIME_FMT)
         # Generate a Git-like hash (first 7 chars of SHA-1)
         with open(photo, 'rb') as f:
             hash_obj = hashlib.sha1()
