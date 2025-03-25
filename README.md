@@ -35,3 +35,13 @@ Alice regularly exports photos and videos from her iPhone into a folder like `20
    This step renames and relocates files into `Misc_Media` folder.
 
    After this step, the import folder is empty, and all media has been organized into appropriate folders.
+
+## Timezone
+
+Timezone is hard, especially when you take photos in different timezones. For deterministic naming, `phtorg` must assume a fixed home timezone.
+
+EXIF 2.31 (July 2016) introduced `OffsetTime` key, which helps determinie the correct timezone, but not all software implements it. If this key exists, `phtorg` combines it with `DateTime` key to get a timezone-aware datetime. Otherwise, the home timezone is attached to the timezone-naive datetime.
+
+MediaInfo always returns a timezone-aware datetime, but some software chooses to use UTC while others choose to use a local timezone.
+
+`phtorg` converts these timezone-aware datetimes into your home timezone (automatically detected) to get a stable sorting. If you run the tool when your computer is set to another timezone (e.g. while travelling), you need to pass your home timezone with `--timezone`.
